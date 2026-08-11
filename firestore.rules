@@ -1,0 +1,36 @@
+rules_version = '2';
+
+// All writes go through Cloud Functions (which run with admin privileges
+// and enforce the actual business rules — atomic claim locking, approval
+// checks, etc). Clients get read access to public data and their own
+// profile; everything else is closed. Tighten `requests` read rules further
+// if you don't want the full request board world-readable.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /hitlRequests/{requestId} {
+      allow read: if resource.data.status == "open" || resource.data.status == "completed";
+      allow write: if false;
+    }
+
+    match /claims/{claimId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    match /users/{userId} {
+      allow read: if true; // reputation is meant to be public, like a bounty-platform profile
+      allow write: if false;
+    }
+
+    match /ratings/{ratingId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    match /flags/{flagId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow write: if false;
+    }
+  }
+}
