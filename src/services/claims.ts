@@ -5,11 +5,11 @@ import { Claim, HitlRequest } from "../types";
 export class ClaimError extends Error {}
 
 /**
- * Claim a task. Uses a Firestore transaction so two workers hitting "claim"
+ * Claim a task. Uses a Firestore transaction so two resolvers hitting "claim"
  * within milliseconds of each other can't both win — one succeeds, the
  * other gets a clear error and can move to the next task on the board.
  */
-export async function claimTask(requestId: string, workerId: string): Promise<Claim> {
+export async function claimTask(requestId: string, resolverId: string): Promise<Claim> {
   const requestRef = collections.requests.doc(requestId);
   const claimRef = collections.claims.doc(requestId); // 1:1 with the request
 
@@ -28,7 +28,7 @@ export async function claimTask(requestId: string, workerId: string): Promise<Cl
 
     const claim: Omit<Claim, "id"> = {
       requestId,
-      workerId,
+      resolverId,
       claimedAt: now,
       deadlineAt,
       status: "active",
@@ -45,7 +45,7 @@ export async function claimTask(requestId: string, workerId: string): Promise<Cl
  * Worker marks the task done. Requester still rates the work afterward —
  * this just closes the claim and flips the request to completed.
  */
-export async function completeTask(requestId: string, workerId: string, submissionNote?: string): Promise<void> {
+export async function completeTask(requestId: string, resolverId: string, submissionNote?: string): Promise<void> {
   const requestRef = collections.requests.doc(requestId);
   const claimRef = collections.claims.doc(requestId);
 
@@ -55,8 +55,8 @@ export async function completeTask(requestId: string, workerId: string, submissi
       throw new ClaimError("No claim found for this request");
     }
     const claim = claimSnap.data() as Claim;
-    if (claim.workerId !== workerId) {
-      throw new ClaimError("Only the worker who claimed this task can complete it");
+    if (claim.resolverId !== resolverId) {
+      throw new ClaimError("Only the resolver who claimed this task can complete it");
     }
     if (claim.status !== "active") {
       throw new ClaimError(`Claim is not active (status: ${claim.status})`);
@@ -72,10 +72,10 @@ export async function completeTask(requestId: string, workerId: string, submissi
 }
 
 /**
- * A worker can release a claim voluntarily before the deadline, reopening
+ * A resolver can release a claim voluntarily before the deadline, reopening
  * it for someone else without waiting out the clock or picking up a flag.
  */
-export async function releaseClaim(requestId: string, workerId: string): Promise<void> {
+export async function releaseClaim(requestId: string, resolverId: string): Promise<void> {
   const requestRef = collections.requests.doc(requestId);
   const claimRef = collections.claims.doc(requestId);
 
@@ -85,8 +85,8 @@ export async function releaseClaim(requestId: string, workerId: string): Promise
       throw new ClaimError("No claim found for this request");
     }
     const claim = claimSnap.data() as Claim;
-    if (claim.workerId !== workerId) {
-      throw new ClaimError("Only the worker who claimed this task can release it");
+    if (claim.resolverId !== resolverId) {
+      throw new ClaimError("Only the resolver who claimed this task can release it");
     }
     if (claim.status !== "active") {
       throw new ClaimError(`Claim is not active (status: ${claim.status})`);

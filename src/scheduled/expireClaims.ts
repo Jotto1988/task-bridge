@@ -8,7 +8,7 @@ import { recordExpiry } from "../services/reputation";
 /**
  * Runs every 5 minutes. Finds active claims whose deadline has passed,
  * reopens the underlying request, marks the claim expired, and flags
- * the worker. Batched sequentially and kept simple deliberately — this
+ * the resolver. Batched sequentially and kept simple deliberately — this
  * is the kind of function you want to be able to read in one sitting
  * when something's wrong with it in production.
  */
@@ -43,10 +43,10 @@ export const expireStaleClaims = onSchedule("every 5 minutes", async () => {
         tx.update(requestRef, { status: "open" });
       });
 
-      await recordExpiry(claim.workerId);
+      await recordExpiry(claim.resolverId);
 
       await collections.flags.add({
-        userId: claim.workerId,
+        userId: claim.resolverId,
         requestId: claim.requestId,
         reason: "expired_claim",
         createdAt: Timestamp.now(),

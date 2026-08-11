@@ -23,6 +23,19 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /organizations/{orgId} {
+      allow read: if true; // company profiles are public, like the job board itself
+      allow write: if false;
+    }
+
+    // Internal only — powers the rater-credibility weighting in reputation.ts.
+    // Never readable by clients, including the rater themselves. There's no
+    // API endpoint that exposes this, and no rule that should ever open one.
+    match /raterStats/{raterId} {
+      allow read: if false;
+      allow write: if false;
+    }
+
     match /ratings/{ratingId} {
       allow read: if request.auth != null;
       allow write: if false;
