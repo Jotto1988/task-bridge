@@ -1,6 +1,7 @@
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { collections } from "../lib/firestore";
 import { generateTermsOfService } from "../lib/termsOfService";
+import { generateVerificationCode, hashVerificationCode } from "../lib/verification";
 import { DEFAULT_ATTIRE_BY_CATEGORY, HitlRequest, Organization, RequestOrigin, RequestStatus, TaskCategory } from "../types";
 import { assertCanSubmit, recordApprovalOutcome } from "./organizations";
 
@@ -24,9 +25,10 @@ interface SubmitRequestInput {
 
 /**
  * Called by (or on behalf of) an AI system, OR by a company's own customer
- * asking for help directly (origin: "customer_request") — the platform
- * doesn't require an AI to be involved at all. Either way it lands in
- * pending_approval; a human decides what happens next.
+ * asking for help directly (origin: "customer_request"). Either way it
+ * lands in pending_approval — an AI can fill in everything about a
+ * request, but it cannot get itself past the approver gate. Only a human
+ * with the approver or admin role for this org can move it further.
  */
 export async function submitRequest(input: SubmitRequestInput): Promise<string> {
   if (input.payoutCents <= 0) {
@@ -70,29 +72,42 @@ export async function submitRequest(input: SubmitRequestInput): Promise<string> 
 }
 
 /**
- * Human sign-off. This is the trust boundary between "AI or a customer
- * raised it" and "the board can see it." The approver gets a last chance
- * to correct the attire/context guidance before it goes public — this is
- * deliberate: the person approving usually knows the client site or
- * situation better than whatever raised the request in the first place.
+ * Human sign-off. The approver can adjust the attire/context guidance and
+ * add their own notes before this goes public — they usually know the
+ * actual site or client better than whatever raised the request. This is
+ * also where the completion verification code is generated: the plaintext
+ * code is returned ONCE, here, for the approver to relay to the actual
+ * client out of band. It is never stored anywhere in plaintext.
  */
-export async function approveRequest(requestId: string, approverId: string, attireGuidanceOverride?: string): Promise<void> {
+export async function approveRequest(
+  requestId: string,
+  approverId: string,
+  options?: { attireGuidanceOverride?: string; approverNotes?: string }
+): Promise<{ verificationCode: string }> {
   const ref = collections.requests.doc(requestId);
   const snap = await ref.get();
   if (!snap.exists) throw new HitlRequestError("Request not found");
   const request = snap.data() as HitlRequest;
 
+  const verificationCode = generateVerificationCode();
+
   const update: Partial<HitlRequest> = {
     status: "open" satisfies RequestStatus,
     approvedBy: approverId,
     approvedAt: FieldValue.serverTimestamp() as Timestamp,
+    verificationCodeHash: hashVerificationCode(verificationCode),
   };
-  if (attireGuidanceOverride?.trim()) {
-    update.attireGuidance = attireGuidanceOverride.trim();
+  if (options?.attireGuidanceOverride?.trim()) {
+    update.attireGuidance = options.attireGuidanceOverride.trim();
+  }
+  if (options?.approverNotes?.trim()) {
+    update.approverNotes = options.approverNotes.trim();
   }
 
   await ref.update(update);
   await recordApprovalOutcome(request.submittedBy.orgId, true);
+
+  return { verificationCode };
 }
 
 export async function rejectRequest(requestId: string, approverId: string, reason: string): Promise<void> {
@@ -112,11 +127,10 @@ export async function rejectRequest(requestId: string, approverId: string, reaso
 }
 
 /**
- * The ABSA-style path: a customer asks for help, and the approver is able
- * to sort it out directly — a phone call, a quick fix, whatever — without
- * ever needing to publish a paid job or involve a resolver at all. Counts
- * toward the org's good-faith track record the same as an approval does,
- * since it means the org engaged with the request rather than ignoring it.
+ * The ABSA-style path: the approver sorts it out directly — a phone call,
+ * a quick fix, whatever — without ever needing a verification code or a
+ * resolver at all. Counts toward the org's good-faith track record the
+ * same as an approval does.
  */
 export async function resolveDirectly(requestId: string, approverId: string, resolutionNote: string): Promise<void> {
   const ref = collections.requests.doc(requestId);
@@ -156,5 +170,15 @@ export async function listPendingApproval(limit = 50): Promise<HitlRequest[]> {
     .where("status", "==", "pending_approval" satisfies RequestStatus)
     .limit(limit)
     .get();
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<HitlRequest, "id">) }));
+}
+
+/**
+ * "Admin sees all" — every request for the org regardless of status,
+ * unlike the approver-facing pending queue or the public open board.
+ * Caller-role checking happens at the API layer before this is called.
+ */
+export async function listAllRequestsForOrg(orgId: string, limit = 100): Promise<HitlRequest[]> {
+  const snap = await collections.requests.where("submittedBy.orgId", "==", orgId).limit(limit).get();
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<HitlRequest, "id">) }));
 }

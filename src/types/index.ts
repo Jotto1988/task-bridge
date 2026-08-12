@@ -25,6 +25,24 @@ export type RequestStatus =
  */
 export type RequestOrigin = "ai_system" | "customer_request";
 
+export type OrgRole = "admin" | "approver";
+
+/**
+ * Membership record, not a custom claim — role checks go through Firestore
+ * (see services/orgMembers.ts) rather than Firebase Auth custom claims, so
+ * granting or revoking a role takes effect immediately with no token
+ * refresh delay, and the whole authorization model stays readable in one
+ * place instead of split between Auth and Firestore.
+ */
+export interface OrgMember {
+  id: string; // `${orgId}_${userId}`
+  orgId: string;
+  userId: string;
+  role: OrgRole;
+  addedBy: string; // userId of whoever granted this — org creator for the first admin
+  createdAt: Timestamp;
+}
+
 export interface HitlRequest {
   id: string;
   submittedBy: {
@@ -37,6 +55,8 @@ export interface HitlRequest {
   description: string;
   /** Free text, defaults to DEFAULT_ATTIRE_BY_CATEGORY[category] but always overridable by the submitter or the approver — the approver gets the final say before it reaches the board. */
   attireGuidance: string;
+  /** Approver's own free-text notes — separate from attire guidance. E.g. "call ahead," "customer prefers text over calls." Purely additive; never overwrites what the AI or customer submitted. */
+  approverNotes?: string;
   /**
    * Plain-language terms shipped with every job so both the org and the
    * resolver know what they're agreeing to before a claim is made. This is
@@ -45,6 +65,14 @@ export interface HitlRequest {
    * swap the generator for a proper legal-drafting call.
    */
   termsOfService: string;
+  /**
+   * SHA-256 hash of the one-time completion verification code, set when
+   * the approver approves the request. The plaintext code is returned
+   * once, in the approval response, for the approver to relay to the
+   * actual client out of band (SMS, phone call, printed slip) — it is
+   * never stored in plaintext anywhere. See lib/verification.ts.
+   */
+  verificationCodeHash?: string;
   /** Arbitrary structured context the resolver needs to do the task (a payload, links, IDs — not PII by default). */
   context: Record<string, unknown>;
   requiredSkills: string[];
@@ -59,7 +87,9 @@ export interface HitlRequest {
   resolutionNote?: string; // set when status is resolved_directly
 }
 
-export type ClaimStatus = "active" | "completed" | "expired";
+export type ClaimStatus = "active" | "completed" | "expired" | "verification_locked";
+
+export type PayoutStatus = "pending_payout" | "released";
 
 export interface Claim {
   id: string; // same id as the request it belongs to, 1:1
@@ -70,6 +100,9 @@ export interface Claim {
   status: ClaimStatus;
   completedAt?: Timestamp;
   submissionNote?: string;
+  /** Failed verification-code attempts. Enough failures locks the claim rather than letting someone brute-force a short code. */
+  verificationAttempts: number;
+  payoutStatus?: PayoutStatus; // set once the claim reaches "completed"
 }
 
 export interface UserProfile {

@@ -1,6 +1,7 @@
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { db, collections } from "../lib/firestore";
 import { CompanyType, HitlRequest, Organization } from "../types";
+import { addFirstAdmin } from "./orgMembers";
 
 export class OrganizationError extends Error {}
 
@@ -16,8 +17,10 @@ interface RegisterOrgInput {
   companyType: CompanyType;
   logoUrl?: string;
   description?: string;
+  createdByUserId: string;
 }
 
+/** The registering user automatically becomes the org's first Admin — someone has to be able to add Approvers before any Approver exists. */
 export async function registerOrganization(input: RegisterOrgInput): Promise<string> {
   const ref = collections.organizations.doc();
   const doc: Omit<Organization, "id"> = {
@@ -32,6 +35,7 @@ export async function registerOrganization(input: RegisterOrgInput): Promise<str
     createdAt: FieldValue.serverTimestamp() as Timestamp,
   };
   await ref.set(doc);
+  await addFirstAdmin(ref.id, input.createdByUserId);
   return ref.id;
 }
 

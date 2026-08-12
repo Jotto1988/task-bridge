@@ -1,5 +1,8 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as hitl from "../services/hitlRequests";
+import { assertIsApproverOrAdmin, assertIsAdmin } from "../services/orgMembers";
+import { collections } from "../lib/firestore";
+import { HitlRequest } from "../types";
 
 /**
  * Submitted by (or on behalf of) an AI system. In production this is where
@@ -48,10 +51,7 @@ export const submitHitlRequest = onCall(async (request) => {
 
 /**
  * The ABSA-style path: a company's own customer asks for help directly,
- * with no AI involved in raising it at all. Requires a signed-in user so
- * the board can't be spammed anonymously, but the input surface is
- * deliberately simpler than the AI-system path — a customer describing a
- * problem shouldn't need to know about skills tags or payout structuring.
+ * with no AI involved in raising it at all.
  */
 export const submitCustomerHelpRequest = onCall(async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in to request help");
@@ -81,14 +81,32 @@ export const submitCustomerHelpRequest = onCall(async (request) => {
   }
 });
 
+/**
+ * The real trust boundary. Only an Approver or Admin for THIS SPECIFIC
+ * request's org can approve it — not any signed-in user, and not an
+ * approver from a different org. Returns the plaintext verification code
+ * once, for the approver to relay to the client — it is never retrievable
+ * again after this response.
+ */
 export const approveHitlRequest = onCall(async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in to approve requests");
-  const { requestId, attireGuidance } = request.data ?? {};
+  const { requestId, attireGuidance, approverNotes } = request.data ?? {};
   if (!requestId) throw new HttpsError("invalid-argument", "requestId is required");
 
-  // TODO: check request.auth.token for an "approver" custom claim before allowing this.
-  await hitl.approveRequest(requestId, request.auth.uid, attireGuidance);
-  return { ok: true };
+  const reqSnap = await collections.requests.doc(requestId).get();
+  if (!reqSnap.exists) throw new HttpsError("not-found", "Request not found");
+  const orgId = (reqSnap.data() as HitlRequest).submittedBy.orgId;
+
+  try {
+    await assertIsApproverOrAdmin(orgId, request.auth.uid);
+    const result = await hitl.approveRequest(requestId, request.auth.uid, {
+      attireGuidanceOverride: attireGuidance,
+      approverNotes,
+    });
+    return result; // { verificationCode }
+  } catch (err) {
+    throw new HttpsError("permission-denied", (err as Error).message);
+  }
 });
 
 export const rejectHitlRequest = onCall(async (request) => {
@@ -96,21 +114,35 @@ export const rejectHitlRequest = onCall(async (request) => {
   const { requestId, reason } = request.data ?? {};
   if (!requestId || !reason) throw new HttpsError("invalid-argument", "requestId and reason are required");
 
-  await hitl.rejectRequest(requestId, request.auth.uid, reason);
-  return { ok: true };
+  const reqSnap = await collections.requests.doc(requestId).get();
+  if (!reqSnap.exists) throw new HttpsError("not-found", "Request not found");
+  const orgId = (reqSnap.data() as HitlRequest).submittedBy.orgId;
+
+  try {
+    await assertIsApproverOrAdmin(orgId, request.auth.uid);
+    await hitl.rejectRequest(requestId, request.auth.uid, reason);
+    return { ok: true };
+  } catch (err) {
+    throw new HttpsError("permission-denied", (err as Error).message);
+  }
 });
 
-/** The approver handled it personally — no job ever gets published. */
+/** The approver handled it personally — no job, no verification code, no resolver ever needed. */
 export const resolveHitlRequestDirectly = onCall(async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in to resolve requests");
   const { requestId, resolutionNote } = request.data ?? {};
   if (!requestId || !resolutionNote) throw new HttpsError("invalid-argument", "requestId and resolutionNote are required");
 
+  const reqSnap = await collections.requests.doc(requestId).get();
+  if (!reqSnap.exists) throw new HttpsError("not-found", "Request not found");
+  const orgId = (reqSnap.data() as HitlRequest).submittedBy.orgId;
+
   try {
+    await assertIsApproverOrAdmin(orgId, request.auth.uid);
     await hitl.resolveDirectly(requestId, request.auth.uid, resolutionNote);
     return { ok: true };
   } catch (err) {
-    throw new HttpsError("failed-precondition", (err as Error).message);
+    throw new HttpsError("permission-denied", (err as Error).message);
   }
 });
 
@@ -122,7 +154,30 @@ export const listOpenHitlRequests = onCall(async (request) => {
 
 export const listPendingHitlRequests = onCall(async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in to view the approval queue");
-  // TODO: check for "approver" custom claim.
-  const results = await hitl.listPendingApproval();
-  return { requests: results };
+  const { orgId } = request.data ?? {};
+  if (!orgId) throw new HttpsError("invalid-argument", "orgId is required");
+
+  try {
+    await assertIsApproverOrAdmin(orgId, request.auth.uid);
+    const results = await hitl.listPendingApproval();
+    // Filtered to this org — listPendingApproval itself isn't org-scoped, so narrow here.
+    return { requests: results.filter((r) => r.submittedBy.orgId === orgId) };
+  } catch (err) {
+    throw new HttpsError("permission-denied", (err as Error).message);
+  }
+});
+
+/** "Admin sees all" — every request for the org, any status. Admin-only, not Approver. */
+export const listOrgRequests = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in");
+  const { orgId } = request.data ?? {};
+  if (!orgId) throw new HttpsError("invalid-argument", "orgId is required");
+
+  try {
+    await assertIsAdmin(orgId, request.auth.uid);
+    const results = await hitl.listAllRequestsForOrg(orgId);
+    return { requests: results };
+  } catch (err) {
+    throw new HttpsError("permission-denied", (err as Error).message);
+  }
 });

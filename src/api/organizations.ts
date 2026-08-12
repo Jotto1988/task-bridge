@@ -1,8 +1,9 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as orgs from "../services/organizations";
-import { CompanyType } from "../types";
+import * as members from "../services/orgMembers";
+import { CompanyType, OrgRole } from "../types";
 
-/** Companies self-register. They start unverified with a small request cap — see organizations.ts for the trust mechanics. */
+/** The registering user becomes the org's first Admin automatically. */
 export const registerOrganization = onCall(async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in to register an organization");
   const { name, companyType, logoUrl, description } = request.data ?? {};
@@ -12,10 +13,37 @@ export const registerOrganization = onCall(async (request) => {
   }
 
   try {
-    const id = await orgs.registerOrganization({ name, companyType, logoUrl, description });
+    const id = await orgs.registerOrganization({ name, companyType, logoUrl, description, createdByUserId: request.auth.uid });
     return { id };
   } catch (err) {
     throw new HttpsError("invalid-argument", (err as Error).message);
+  }
+});
+
+/** Admin-only — bring on an Approver or a co-Admin. */
+export const addOrgMember = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in");
+  const { orgId, userId, role } = (request.data ?? {}) as { orgId?: string; userId?: string; role?: OrgRole };
+  if (!orgId || !userId || !role) throw new HttpsError("invalid-argument", "orgId, userId, and role are required");
+
+  try {
+    await members.addOrgMember(orgId, userId, role, request.auth.uid);
+    return { ok: true };
+  } catch (err) {
+    throw new HttpsError("permission-denied", (err as Error).message);
+  }
+});
+
+export const removeOrgMember = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in");
+  const { orgId, userId } = request.data ?? {};
+  if (!orgId || !userId) throw new HttpsError("invalid-argument", "orgId and userId are required");
+
+  try {
+    await members.removeOrgMember(orgId, userId, request.auth.uid);
+    return { ok: true };
+  } catch (err) {
+    throw new HttpsError("permission-denied", (err as Error).message);
   }
 });
 
@@ -39,12 +67,21 @@ export const listOrganizations = onCall(async (request) => {
   return { organizations: results };
 });
 
+/**
+ * These two are PLATFORM-level moderation, a different authority tier
+ * from org Admin — an org Admin oversees their own org, but shouldn't be
+ * able to verify or reinstate their own org's standing. That needs a
+ * platform-operator credential (e.g. a Firebase custom claim set outside
+ * this app's normal signup flow), which this scaffold deliberately leaves
+ * as an open decision for whoever deploys it, rather than assuming a
+ * specific moderation model.
+ */
 export const verifyOrganization = onCall(async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in");
   const { orgId } = request.data ?? {};
   if (!orgId) throw new HttpsError("invalid-argument", "orgId is required");
 
-  // TODO: check request.auth.token for an "admin" custom claim before allowing this.
+  // TODO: check request.auth.token for a platform-level "operator" custom claim before allowing this.
   await orgs.verifyOrganization(orgId);
   return { ok: true };
 });
@@ -54,7 +91,7 @@ export const reinstateOrganization = onCall(async (request) => {
   const { orgId } = request.data ?? {};
   if (!orgId) throw new HttpsError("invalid-argument", "orgId is required");
 
-  // TODO: check request.auth.token for an "admin" custom claim before allowing this.
+  // TODO: check request.auth.token for a platform-level "operator" custom claim before allowing this.
   await orgs.reinstateOrganization(orgId);
   return { ok: true };
 });

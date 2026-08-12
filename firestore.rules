@@ -28,6 +28,15 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // A user can see their own role at an org (so a client UI can show/hide
+    // approver or admin controls) but never anyone else's, and never write
+    // directly — role grants only happen through addOrgMember, which
+    // enforces the Admin-only check server-side.
+    match /orgMembers/{memberId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow write: if false;
+    }
+
     // Internal only — powers the rater-credibility weighting in reputation.ts.
     // Never readable by clients, including the rater themselves. There's no
     // API endpoint that exposes this, and no rule that should ever open one.

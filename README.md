@@ -17,27 +17,32 @@ This is not a finished product. It is not a company, and it doesn't claim to sol
 ## Roles
 
 - **Org** — the company. Whose AI system (or self-service form) is allowed to raise requests, and who's accountable for the requests it publishes.
-- **Approver** — a human at the org who reviews requests before they go live. Can approve, reject, resolve a request personally, or adjust the guidance shipped with it.
+- **Admin** — oversees everything for their org: every request regardless of status, who's allowed to approve, and who releases payouts. The first Admin is whoever registers the org; only an existing Admin can add more Admins or Approvers.
+- **Approver** — reviews requests before they go live. Can approve, reject, resolve a request personally, adjust the guidance shipped with it, or add their own notes. Cannot self-promote to Admin, and cannot release a payout — that's a separate authority.
 - **Resolver** — the person who claims and does the work.
+
+Role checks run against Firestore membership records (`orgMembers`), scoped per-org — an Approver at one company has no authority over another company's requests, and every approval/rejection/resolution/payout endpoint verifies the caller's role for that specific request's org before doing anything.
 
 ## Core mechanics
 
 | Concept | Behavior |
 |---|---|
-| **Organization** | The employer side. Starts unverified with a small concurrent-request cap; the cap rises automatically after a run of clean approvals, and an org gets auto-suspended if too many of its requests get rejected. Same trust logic bounty platforms apply to programs, applied here to requesters. |
-| **HITL Request** | Raised either by an AI system, or directly by an org's own customer (e.g. "can you send someone to help with my online banking") — an AI isn't required to use this at all. Tagged with a category, attire guidance (defaults per category, always overridable — first by whoever submits it, then again by the approver, who usually knows the actual site or client better), plain-language terms of service, context, required skills, and a payout. |
-| **Approval** | A human reviewer decides what happens: approve it onto the board, reject it, or — for customer requests that can be sorted out directly — resolve it personally without ever publishing a paid job. All three outcomes feed the org's track record. |
-| **Job Board** | Public listing of approved, open tasks. Filterable by skill, category, and payout. Each request links back to the organization's public profile — logo, company type, and its other open jobs — for resolvers who'd rather stick with a company they trust. |
-| **Claim & Lock** | First qualified resolver to accept a task gets exclusive access. No one else can take it while it's claimed. |
-| **Turnaround Window** | Every task has a deadline. Miss it, and the task reopens automatically — the claim expires. |
-| **Reputation** | Built from completion rate, on-time rate, and ratings from the people a resolver worked with — modeled on how bounty platforms like HackerOne track researcher trust. |
-| **Mutual Rating** | Both sides rate each other after a task closes. Resolvers build a track record; requesters do too. |
-| **Rating integrity** | Ratings from a chronic outlier rater (someone whose scores run consistently far harsher than the platform average, across enough history to tell it's a pattern and not a bad week) get quietly reduced in influence on a resolver's score. No flag, no label, nothing visible to anyone — it's a statistical correction, not a dispute system, because a resolver's livelihood shouldn't be held hostage by one difficult account. |
-| **Terms of Service** | Every request ships with auto-generated plain-language terms (independent-work status, payout, turnaround, liability, disputes). It's a template today, not legal advice — see `src/lib/termsOfService.ts` for the seam where a real legal-drafting call could replace it. |
+| **Organization** | The employer side. Starts unverified with a small concurrent-request cap; the cap rises automatically after a run of clean approvals, and an org gets auto-suspended if too many of its requests get rejected. |
+| **HITL Request** | Raised either by an AI system, or directly by an org's own customer. An AI can fill in everything about a request, but it cannot get itself past the approver gate — only a human with the approver or admin role can move it further. Tagged with a category, attire guidance, approver notes, plain-language terms of service, context, required skills, and a payout. |
+| **Approval** | An Approver or Admin decides what happens: approve it onto the board, reject it, or resolve it personally. Approving generates a one-time completion verification code — the plaintext is returned once, in the approval response, for the approver to relay to the actual client out of band (SMS, a phone call, a printed slip). Only its hash is ever stored. |
+| **Job Board** | Public listing of approved, open tasks. Filterable by skill, category, and payout, with each request linking to the org's public profile. |
+| **Claim & Lock** | First qualified resolver to accept a task gets exclusive access. |
+| **Turnaround Window** | Every task has a deadline. Miss it, and the task reopens automatically. |
+| **Completion verification** | A resolver can't self-certify a job as done. Completing a claim requires the verification code the client was given — not the resolver's own say-so. Wrong codes count against a limited number of attempts; too many failures locks the claim for Admin review instead of allowing a brute-force guess. |
+| **Finance / payout** | A verified-complete claim moves to `pending_payout`. Releasing it is Admin-only, deliberately separate from the Approver who signed off on the work — same separation of duties as a program that doesn't let one person both approve a bounty and cut the check. The actual payment rail is left as a hook (`services/finance.ts`) — this repo doesn't assume PayFast, a bank transfer, or any specific region. |
+| **Reputation** | Built from completion rate, on-time rate, and ratings from the people a resolver worked with. |
+| **Mutual Rating** | Both sides rate each other after a task closes. |
+| **Rating integrity** | Ratings from a chronic outlier rater get quietly reduced in influence on a resolver's score. No flag, no label, nothing visible to anyone. |
+| **Terms of Service** | Every request ships with auto-generated plain-language terms. Template today, not legal advice — see `src/lib/termsOfService.ts`. |
 
 ## Status
 
-Early scaffold. Core Firestore data model and Cloud Functions for the organization → request → approve/resolve → claim → complete → rate lifecycle, including org-side trust mechanics and rating-integrity weighting. No frontend yet — this is API-first so the mechanics can be tested and argued with before anyone spends time on UI.
+Early scaffold. Core Firestore data model and Cloud Functions for the full lifecycle: org registration with automatic Admin bootstrap, Admin/Approver membership management, request submission and approval with verification-code generation, claim/complete with code-gated verification and attempt lockout, Admin-only payout release, and org/rating trust mechanics. Two things explicitly still open: platform-level org verification/suspension-override (see the comment in `api/organizations.ts`) and any real payment integration. No frontend yet — this is API-first so the mechanics can be tested and argued with before anyone spends time on UI.
 
 ## Stack
 

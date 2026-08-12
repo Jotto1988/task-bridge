@@ -20,11 +20,13 @@ export const claimHitlTask = onCall(async (request) => {
 
 export const completeHitlTask = onCall(async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in to complete a task");
-  const { requestId, submissionNote } = request.data ?? {};
-  if (!requestId) throw new HttpsError("invalid-argument", "requestId is required");
+  const { requestId, verificationCode, submissionNote } = request.data ?? {};
+  if (!requestId || !verificationCode) {
+    throw new HttpsError("invalid-argument", "requestId and verificationCode are required");
+  }
 
   try {
-    await claims.completeTask(requestId, request.auth.uid, submissionNote);
+    await claims.completeTask(requestId, request.auth.uid, verificationCode, submissionNote);
     await recordCompletion(request.auth.uid);
     return { ok: true };
   } catch (err) {

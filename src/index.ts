@@ -6,10 +6,13 @@ export {
   resolveHitlRequestDirectly,
   listOpenHitlRequests,
   listPendingHitlRequests,
+  listOrgRequests,
 } from "./api/requests";
 
 export {
   registerOrganization,
+  addOrgMember,
+  removeOrgMember,
   getOrganizationProfile,
   listOrganizations,
   verifyOrganization,
@@ -19,5 +22,7 @@ export {
 export { claimHitlTask, completeHitlTask, releaseHitlClaim } from "./api/claims";
 
 export { rateHitlParticipant } from "./api/ratings";
+
+export { releasePayout } from "./api/finance";
 
 export { expireStaleClaims } from "./scheduled/expireClaims";
