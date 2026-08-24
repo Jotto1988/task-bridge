@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Task Bridge — concept demo</title>
 <meta name="description" content="A working concept demo for Task Bridge: a human-in-the-loop task marketplace with bug-bounty-style claim locking and verified completion.">
+<link rel="icon" type="image/png" href="assets/images/logo_task_bridge.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -76,9 +77,7 @@
   .brandrow{ display:flex; align-items:center; justify-content:space-between; gap:16px; }
   .brand{ display:flex; align-items:center; gap:10px; font-family:var(--font-mono); font-size:14px; }
   .brand .mark{
-    width:28px; height:28px; border:2px solid var(--ink); border-radius:50%;
-    display:flex; align-items:center; justify-content:center; font-family:var(--font-display);
-    font-weight:800; font-size:14px; background:var(--paper-raised);
+    height:30px; width:auto; display:block;
   }
   nav.site a{ font-size:13px; text-decoration:none; margin-left:20px; font-weight:500; }
   nav.site a:hover{ color:var(--amber); }
@@ -267,7 +266,7 @@
     <header class="site">
       <div class="brandrow">
         <div class="brand">
-          <span class="mark">T</span>
+          <img class="mark" src="assets/images/logo_task_bridge.png" alt="Task Bridge logo">
           TASK BRIDGE
         </div>
         <nav class="site">
