@@ -62,3 +62,5 @@ Deploy is left to whoever's running it — this repo doesn't assume a specific G
 ## Contributing
 
 Open issues, open PRs, fork it, argue with the model in the issues tab. If you think the reputation mechanics are wrong, or the approval step is a bottleneck, or the whole premise is flawed — say so. This is a concept meant to be pressure-tested, not a finished platform.
+
+Live site: https://jotto1988.github.io/task-bridge/
