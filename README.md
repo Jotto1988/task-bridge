@@ -36,8 +36,6 @@ This is not a finished product. It is not a company, and it doesn't claim to sol
 
 ## How it connects
 
-## How it connects
-
 ```mermaid
 flowchart TD
     A["Company's AI system"] -->|raises a request via REST API or SDK| B["Task Bridge backend<br/>Cloud Functions, no install required"]
