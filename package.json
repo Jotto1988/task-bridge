@@ -1,30 +1,21 @@
 {
-  "name": "task-bridge",
+  "name": "task-bridge-claude-agent-example",
   "version": "0.1.0",
-  "description": "Open-source concept: a human-in-the-loop task marketplace for AI-generated work, with bug-bounty-style claim locking, turnaround windows, and mutual reputation.",
-  "main": "lib/index.js",
-  "engines": {
-    "node": "20"
-  },
+  "private": true,
+  "description": "A runnable example: a Claude Agent SDK agent that raises a Task Bridge signal when it hits genuine uncertainty about undocumented business logic, waits for a human to answer, then integrates the fix and commits it.",
+  "type": "module",
   "scripts": {
-    "build": "tsc",
-    "build:watch": "tsc --watch",
-    "serve": "npm run build && firebase emulators:start --only functions,firestore",
-    "shell": "npm run build && firebase functions:shell",
-    "deploy": "firebase deploy --only functions",
-    "logs": "firebase functions:log",
-    "lint": "eslint src --ext .ts"
+    "start": "tsx src/runAgent.ts",
+    "resolve": "tsx scripts/resolve.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "firebase-admin": "^12.1.0",
-    "firebase-functions": "^5.0.0"
+    "@anthropic-ai/claude-agent-sdk": "latest",
+    "zod": "^4.0.0"
   },
   "devDependencies": {
-    "@typescript-eslint/eslint-plugin": "^7.7.0",
-    "@typescript-eslint/parser": "^7.7.0",
-    "eslint": "^8.57.0",
-    "typescript": "^5.4.5"
-  },
-  "private": true,
-  "license": "MIT"
+    "tsx": "^4.15.0",
+    "typescript": "^5.4.5",
+    "@types/node": "^20.11.0"
+  }
 }

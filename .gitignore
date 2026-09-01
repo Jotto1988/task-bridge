@@ -1,11 +1,8 @@
 node_modules/
-lib/
 *.log
-.firebase/
-.env
-.env.*
-!.env.example
 .DS_Store
-firebase-debug.log
-firebase-debug.*.log
-ui-debug.log
+
+# local-project is its own isolated git repo, created and reset by
+# runAgent.ts. Its .git directory should never be tracked by the outer
+# task-bridge repo (that would create a nested "embedded repository").
+local-project/.git/
