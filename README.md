@@ -36,14 +36,16 @@ This is not a finished product. It is not a company, and it doesn't claim to sol
 
 ## How it connects
 
+## How it connects
+
 ```mermaid
 flowchart TD
-    A["Company's AI system<br><sub>Calls Task Bridge's REST API or the client SDK</sub>"] -->|raises a request| B["Task Bridge backend<br><sub>Cloud Functions — no install required</sub>"]
-    B --> C["Human approver<br><sub>Reviews before it's public, issues a verification code</sub>"]
-    C -->|approved| D["Public job board<br><sub>Anyone qualified can browse and claim</sub>"]
-    D --> E["Resolver's device<br><sub>Browser, app, or bot</sub>"]
+    A["Company's AI system"] -->|raises a request via REST API or SDK| B["Task Bridge backend<br/>Cloud Functions, no install required"]
+    B --> C["Human approver<br/>Reviews before it's public, issues a code"]
+    C -->|approved| D["Public job board<br/>Anyone qualified can browse and claim"]
+    D --> E["Resolver's device<br/>Browser, app, or bot"]
     E -->|enters the client's code| B
-    B -->|verified complete| F["Admin releases payout<br><sub>Separate authority from the approver</sub>"]
+    B -->|verified complete| F["Admin releases payout<br/>Separate authority from the approver"]
 ```
 
 A company's AI system doesn't need anything installed on their server beyond a way to make an HTTP call — the [client SDK](sdk/) wraps that into a few clean functions. A resolver doesn't need anything installed either — the [job board](web/) is one static page that talks to the same backend.
