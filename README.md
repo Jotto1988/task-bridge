@@ -1,6 +1,26 @@
-# Task Bridge
+<p align="center">
+  <img src="assets/images/logo_task_bridge.png" width="180" alt="Task Bridge logo">
+</p>
 
-**A working concept for routing AI-generated human-in-the-loop work back to real people, with the accountability mechanics of a bug bounty platform.**
+<h1 align="center">Task Bridge</h1>
+
+<p align="center">
+  <b>A working concept for routing AI-generated human-in-the-loop work back to real people, with the accountability mechanics of a bug bounty platform.</b>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/status-early_scaffold-A63A2C?style=for-the-badge" alt="status">
+  <img src="https://img.shields.io/badge/typescript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="typescript">
+  <img src="https://img.shields.io/badge/firebase-ffca28?style=for-the-badge&logo=firebase&logoColor=black" alt="firebase">
+  <img src="https://img.shields.io/badge/license-MIT-223756?style=for-the-badge" alt="MIT license">
+</p>
+
+<p align="center">
+  <a href="https://jotto1988.github.io/task-bridge/"><b>Concept demo</b></a> ·
+  <a href="web/"><b>Job board</b></a> ·
+  <a href="sdk/"><b>Client SDK</b></a> ·
+  <a href="examples/claude-agent-integration/"><b>Claude Agent SDK example</b></a>
+</p>
 
 > Working name — rename freely if you fork this. `task-bridge` is a placeholder, not a brand.
 
@@ -13,6 +33,20 @@ Task Bridge is an open-source attempt at infrastructure for the alternative: whe
 This is not a finished product. It is not a company, and it doesn't claim to solve the economics of AI-driven job displacement — that's a much bigger problem than one repo can fix, and how (or whether) that transition gets cushioned for the people affected is still very much unresolved. This is one piece of infrastructure, published so the idea can be tested, argued with, and improved by people who might actually need it or build on it.
 
 **If it's useful, take it. If it's wrong, fork it and fix it. If it's a bad idea, open an issue and say so.**
+
+## How it connects
+
+```mermaid
+flowchart TD
+    A["Company's AI system<br><sub>Calls Task Bridge's REST API or the client SDK</sub>"] -->|raises a request| B["Task Bridge backend<br><sub>Cloud Functions — no install required</sub>"]
+    B --> C["Human approver<br><sub>Reviews before it's public, issues a verification code</sub>"]
+    C -->|approved| D["Public job board<br><sub>Anyone qualified can browse and claim</sub>"]
+    D --> E["Resolver's device<br><sub>Browser, app, or bot</sub>"]
+    E -->|enters the client's code| B
+    B -->|verified complete| F["Admin releases payout<br><sub>Separate authority from the approver</sub>"]
+```
+
+A company's AI system doesn't need anything installed on their server beyond a way to make an HTTP call — the [client SDK](sdk/) wraps that into a few clean functions. A resolver doesn't need anything installed either — the [job board](web/) is one static page that talks to the same backend.
 
 ## Roles
 
@@ -34,25 +68,41 @@ Role checks run against Firestore membership records (`orgMembers`), scoped per-
 | **Claim & Lock** | First qualified resolver to accept a task gets exclusive access. |
 | **Turnaround Window** | Every task has a deadline. Miss it, and the task reopens automatically. |
 | **Completion verification** | A resolver can't self-certify a job as done. Completing a claim requires the verification code the client was given — not the resolver's own say-so. Wrong codes count against a limited number of attempts; too many failures locks the claim for Admin review instead of allowing a brute-force guess. |
-| **Finance / payout** | A verified-complete claim moves to `pending_payout`. Releasing it is Admin-only, deliberately separate from the Approver who signed off on the work — same separation of duties as a program that doesn't let one person both approve a bounty and cut the check. The actual payment rail is left as a hook (`services/finance.ts`) — this repo doesn't assume PayFast, a bank transfer, or any specific region. |
+| **Finance / payout** | A verified-complete claim moves to `pending_payout`. Releasing it is Admin-only, deliberately separate from the Approver who signed off on the work. The actual payment rail is left as a hook (`services/finance.ts`) — this repo doesn't assume PayFast, a bank transfer, or any specific region. |
 | **Reputation** | Built from completion rate, on-time rate, and ratings from the people a resolver worked with. |
 | **Mutual Rating** | Both sides rate each other after a task closes. |
 | **Rating integrity** | Ratings from a chronic outlier rater get quietly reduced in influence on a resolver's score. No flag, no label, nothing visible to anyone. |
 | **Terms of Service** | Every request ships with auto-generated plain-language terms. Template today, not legal advice — see `src/lib/termsOfService.ts`. |
+| **API keys** | A company's AI system authenticates with an API key (`tb_live_...`), not a human's Firebase Auth token — only its hash is ever stored, and the plaintext is shown exactly once, at creation. |
 
-## Status
+<details>
+<summary><b>What's actually built vs. still open</b></summary>
+<br>
 
-Early scaffold. Core Firestore data model and Cloud Functions for the full lifecycle: org registration with automatic Admin bootstrap, Admin/Approver membership management, request submission and approval with verification-code generation, claim/complete with code-gated verification and attempt lockout, Admin-only payout release, and org/rating trust mechanics. Two things explicitly still open: platform-level org verification/suspension-override (see the comment in `api/organizations.ts`) and any real payment integration. No frontend yet — this is API-first so the mechanics can be tested and argued with before anyone spends time on UI.
+**Built and tested:**
+- [x] Org registration with automatic Admin bootstrap
+- [x] Admin/Approver role checks, scoped per-org
+- [x] Request lifecycle: submit → approve/reject/resolve → claim → complete → rate
+- [x] One-time verification codes, hashed, with attempt lockout
+- [x] Admin-only payout release, separate from approval
+- [x] Org trust mechanics (request caps, auto-suspend) and rating-integrity weighting
+- [x] Plain REST API + API keys for company AI systems ([`sdk/`](sdk/))
+- [x] A minimal, functional job board resolvers can actually use ([`web/`](web/))
+- [x] A live, tested integration showing a Claude agent raise a signal and wait for a human ([`examples/claude-agent-integration/`](examples/claude-agent-integration/))
+
+**Explicitly still open:**
+- [ ] Admin/Approver UI — creating API keys, approving requests, and releasing payouts currently go through direct function calls or the Firebase console
+- [ ] Platform-level org verification/suspension override (see the comment in `api/organizations.ts`) — a different authority tier from any single org's own Admin
+- [ ] Real payment integration — `services/finance.ts` is a deliberate hook, not wired to any payment rail
+- [ ] Reputation display on the job board frontend
+
+</details>
 
 ## Stack
 
 - TypeScript
 - Firebase Cloud Functions (v2) + Firestore
 - Designed for horizontal scale from the start — claims are resolved with Firestore transactions to avoid race conditions under load, and expiry sweeps run on a schedule rather than per-request polling
-
-## Examples
-
-- **[Claude Agent SDK integration](examples/claude-agent-integration/)** — a live demo: an agent hits a wall it shouldn't guess past, raises a Task Bridge signal, and only proceeds once a human answers.
 
 ## Getting started
 
