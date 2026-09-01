@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Task Bridge — job board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#EDE6D6; --paper-raised:#F6F1E6; --ink:#1B2233; --navy:#223756;
+    --amber:#DD8A1E; --rust:#A63A2C; --slate:#6B7280; --line: rgba(27,34,51,0.16);
+    --font-display: "Big Shoulders Display", sans-serif;
+    --font-body: "IBM Plex Sans", -apple-system, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--paper); color:var(--ink); font-family:var(--font-body); line-height:1.5; }
+  .wrap{ max-width:960px; margin:0 auto; padding:0 24px 60px; }
+  header{ display:flex; justify-content:space-between; align-items:center; padding:20px 0; border-bottom:2px solid var(--ink); margin-bottom:28px; }
+  .brand{ font-family:var(--font-mono); font-size:14px; font-weight:500; }
+  h1{ font-family:var(--font-display); font-weight:800; font-size:28px; margin:0 0 4px; }
+  h2{ font-family:var(--font-display); font-weight:700; font-size:20px; margin:32px 0 14px; }
+  .muted{ color:var(--slate); font-size:14px; }
+  button{ font-family:var(--font-body); font-weight:600; font-size:14px; padding:9px 16px; border-radius:4px; border:2px solid var(--ink); background:var(--navy); color:#fff; cursor:pointer; }
+  button.ghost{ background:transparent; color:var(--ink); }
+  button:disabled{ opacity:0.5; cursor:not-allowed; }
+  input[type=text]{ font-family:var(--font-mono); font-size:14px; padding:8px 10px; border:1.5px solid var(--ink); border-radius:4px; width:100%; }
+  .board{ display:grid; grid-template-columns:repeat(auto-fill, minmax(260px,1fr)); gap:18px; }
+  .ticket{ background:var(--paper-raised); border:2px solid var(--ink); border-radius:6px; padding:16px; }
+  .cat{ display:inline-block; font-family:var(--font-mono); font-size:10.5px; letter-spacing:0.05em; text-transform:uppercase; padding:3px 8px; border-radius:2px; background:var(--navy); color:#fff; margin-bottom:10px; }
+  .ticket h3{ font-family:var(--font-display); font-weight:700; font-size:18px; margin:0 0 8px; }
+  .meta{ display:flex; gap:12px; font-size:12.5px; color:var(--slate); margin-bottom:8px; }
+  .meta b{ color:var(--ink); font-family:var(--font-mono); font-weight:500; }
+  .attire{ font-size:12.5px; border-left:2px solid var(--amber); padding-left:8px; margin:0 0 14px; }
+  .claim-panel{ background:var(--paper-raised); border:2px solid var(--rust); border-radius:6px; padding:20px; }
+  .deadline{ font-family:var(--font-mono); font-size:22px; font-weight:500; margin:8px 0 16px; }
+  .status-msg{ font-size:13px; margin-top:10px; }
+  .status-msg.error{ color:var(--rust); }
+  .status-msg.ok{ color:#1F5B33; }
+  #signed-out-note{ font-size:14px; color:var(--slate); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Task Bridge</h1>
+      <div class="muted">Job board — mock data OFF, this calls the real backend</div>
+    </div>
+    <div id="auth-area"><button id="signin-btn">Sign in with Google</button></div>
+  </header>
+
+  <div id="signed-out-note">Sign in to claim or complete a job. Browsing the open board doesn't require an account.</div>
+
+  <h2>Open jobs</h2>
+  <div id="board" class="board"><p class="muted">Loading…</p></div>
+
+  <div id="claim-section" style="display:none;">
+    <h2>Your active claim</h2>
+    <div class="claim-panel">
+      <div id="claim-title" style="font-family:var(--font-display);font-weight:700;font-size:20px;"></div>
+      <div class="deadline" id="claim-countdown"></div>
+      <p class="muted">Enter the completion code the client gave you — this is how the job gets marked done.</p>
+      <input type="text" id="verification-code" placeholder="6-digit code" maxlength="6">
+      <div style="margin-top:12px; display:flex; gap:10px;">
+        <button id="complete-btn">Mark complete</button>
+        <button class="ghost" id="release-btn">Release claim</button>
+      </div>
+      <div id="claim-status" class="status-msg"></div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+  import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-functions.js";
+
+  // ---- Fill in with your own Firebase project's web config (Project settings > General > Your apps) ----
+  const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT.firebaseapp.com",
+    projectId: "YOUR_PROJECT",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID",
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const functions = getFunctions(app);
+
+  const listOpenHitlRequests = httpsCallable(functions, "listOpenHitlRequests");
+  const claimHitlTask = httpsCallable(functions, "claimHitlTask");
+  const completeHitlTask = httpsCallable(functions, "completeHitlTask");
+  const releaseHitlClaim = httpsCallable(functions, "releaseHitlClaim");
+
+  const authArea = document.getElementById("auth-area");
+  const signedOutNote = document.getElementById("signed-out-note");
+  const boardEl = document.getElementById("board");
+  const claimSection = document.getElementById("claim-section");
+  const claimTitleEl = document.getElementById("claim-title");
+  const claimCountdownEl = document.getElementById("claim-countdown");
+  const claimStatusEl = document.getElementById("claim-status");
+
+  let currentUser = null;
+  let activeClaim = null; // { requestId, title, deadlineAt (ms) }
+  let countdownTimer = null;
+
+  document.getElementById("signin-btn").addEventListener("click", () => {
+    signInWithPopup(auth, new GoogleAuthProvider()).catch((err) => alert("Sign-in failed: " + err.message));
+  });
+
+  onAuthStateChanged(auth, (user) => {
+    currentUser = user;
+    if (user) {
+      signedOutNote.style.display = "none";
+      authArea.innerHTML = `<span class="muted">${user.displayName || user.email}</span> <button class="ghost" id="signout-btn">Sign out</button>`;
+      document.getElementById("signout-btn").addEventListener("click", () => signOut(auth));
+    } else {
+      signedOutNote.style.display = "block";
+      authArea.innerHTML = `<button id="signin-btn">Sign in with Google</button>`;
+      document.getElementById("signin-btn").addEventListener("click", () => {
+        signInWithPopup(auth, new GoogleAuthProvider()).catch((err) => alert("Sign-in failed: " + err.message));
+      });
+    }
+    loadBoard();
+  });
+
+  async function loadBoard() {
+    boardEl.innerHTML = `<p class="muted">Loading…</p>`;
+    try {
+      const result = await listOpenHitlRequests({});
+      const jobs = result.data.requests || [];
+      if (jobs.length === 0) {
+        boardEl.innerHTML = `<p class="muted">No open jobs right now.</p>`;
+        return;
+      }
+      boardEl.innerHTML = "";
+      for (const job of jobs) {
+        boardEl.appendChild(renderTicket(job));
+      }
+    } catch (err) {
+      boardEl.innerHTML = `<p class="status-msg error">Couldn't load the board: ${err.message}</p>`;
+    }
+  }
+
+  function renderTicket(job) {
+    const el = document.createElement("div");
+    el.className = "ticket";
+    const payout = ((job.payoutCents || 0) / 100).toFixed(2);
+    el.innerHTML = `
+      <span class="cat">${job.category.replace(/_/g, " ")}</span>
+      <h3>${escapeHtml(job.title)}</h3>
+      <div class="meta"><span>Payout <b>${job.currency} ${payout}</b></span><span>Window <b>${job.turnaroundMinutes}m</b></span></div>
+      <p class="attire">${escapeHtml(job.attireGuidance || "")}</p>
+      <button class="claim-btn" ${currentUser ? "" : "disabled"}>${currentUser ? "Claim" : "Sign in to claim"}</button>
+    `;
+    el.querySelector(".claim-btn").addEventListener("click", () => claimJob(job));
+    return el;
+  }
+
+  async function claimJob(job) {
+    if (!currentUser) return;
+    try {
+      await claimHitlTask({ requestId: job.id });
+      activeClaim = {
+        requestId: job.id,
+        title: job.title,
+        deadlineAt: Date.now() + job.turnaroundMinutes * 60 * 1000,
+      };
+      showClaimPanel();
+      loadBoard();
+    } catch (err) {
+      alert("Couldn't claim this job: " + err.message);
+    }
+  }
+
+  function showClaimPanel() {
+    claimSection.style.display = "block";
+    claimTitleEl.textContent = activeClaim.title;
+    claimStatusEl.textContent = "";
+    claimStatusEl.className = "status-msg";
+    if (countdownTimer) clearInterval(countdownTimer);
+    countdownTimer = setInterval(updateCountdown, 1000);
+    updateCountdown();
+  }
+
+  function updateCountdown() {
+    if (!activeClaim) return;
+    const remaining = activeClaim.deadlineAt - Date.now();
+    if (remaining <= 0) {
+      claimCountdownEl.textContent = "Deadline passed — this claim may have expired";
+      clearInterval(countdownTimer);
+      return;
+    }
+    const mins = Math.floor(remaining / 60000);
+    const secs = Math.floor((remaining % 60000) / 1000);
+    claimCountdownEl.textContent = `${mins}m ${secs.toString().padStart(2, "0")}s remaining`;
+  }
+
+  document.getElementById("complete-btn").addEventListener("click", async () => {
+    if (!activeClaim) return;
+    const code = document.getElementById("verification-code").value.trim();
+    if (!code) {
+      claimStatusEl.textContent = "Enter the completion code first.";
+      claimStatusEl.className = "status-msg error";
+      return;
+    }
+    try {
+      await completeHitlTask({ requestId: activeClaim.requestId, verificationCode: code });
+      claimStatusEl.textContent = "Marked complete. Payout is now pending admin release.";
+      claimStatusEl.className = "status-msg ok";
+      clearInterval(countdownTimer);
+      activeClaim = null;
+      setTimeout(() => { claimSection.style.display = "none"; }, 2500);
+      loadBoard();
+    } catch (err) {
+      claimStatusEl.textContent = err.message;
+      claimStatusEl.className = "status-msg error";
+    }
+  });
+
+  document.getElementById("release-btn").addEventListener("click", async () => {
+    if (!activeClaim) return;
+    try {
+      await releaseHitlClaim({ requestId: activeClaim.requestId });
+      clearInterval(countdownTimer);
+      activeClaim = null;
+      claimSection.style.display = "none";
+      loadBoard();
+    } catch (err) {
+      claimStatusEl.textContent = err.message;
+      claimStatusEl.className = "status-msg error";
+    }
+  });
+
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+</script>
+</body>
+</html>

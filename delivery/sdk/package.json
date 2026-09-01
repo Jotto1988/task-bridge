@@ -1,0 +1,17 @@
+{
+  "name": "@task-bridge/client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Client SDK for a company's AI system (or any server) to call Task Bridge's REST API — submit HITL requests and poll their status, authenticated with an API key.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "@types/node": "^20.11.0"
+  }
+}
