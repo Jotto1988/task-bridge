@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Task Bridge — concept demo</title>
+<meta name="description" content="A working concept demo for Task Bridge: a human-in-the-loop task marketplace with bug-bounty-style claim locking and verified completion.">
+<link rel="icon" type="image/png" href="assets/images/logo_task_bridge.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#EDE6D6;
+    --paper-raised:#F6F1E6;
+    --ink:#1B2233;
+    --navy:#223756;
+    --amber:#DD8A1E;
+    --rust:#A63A2C;
+    --slate:#6B7280;
+    --line: rgba(27,34,51,0.16);
+    --radius: 3px;
+    --max: 1120px;
+    --font-display: "Big Shoulders Display", sans-serif;
+    --font-body: "IBM Plex Sans", -apple-system, Segoe UI, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  }
+
+  *{ box-sizing:border-box; }
+  html{ scroll-behavior:smooth; }
+  @media (prefers-reduced-motion: reduce){
+    html{ scroll-behavior:auto; }
+    *{ animation-duration:0.01ms !important; animation-iteration-count:1 !important; transition-duration:0.01ms !important; }
+  }
+
+  body{
+    margin:0;
+    background:var(--paper);
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(27,34,51,0.05) 1px, transparent 0);
+    background-size: 22px 22px;
+    color:var(--ink);
+    font-family:var(--font-body);
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  a{ color:inherit; }
+  :focus-visible{ outline:3px solid var(--amber); outline-offset:2px; }
+
+  .wrap{ max-width:var(--max); margin:0 auto; padding:0 24px; }
+
+  /* ---------- demo banner ---------- */
+  .demo-banner{
+    position:sticky; top:0; z-index:50;
+    background:var(--navy); color:var(--paper-raised);
+    border-bottom:2px solid var(--ink);
+  }
+  .demo-banner .wrap{
+    display:flex; align-items:center; gap:14px;
+    padding:10px 24px; flex-wrap:wrap;
+  }
+  .demo-banner .tag{
+    font-family:var(--font-mono); font-size:12px; letter-spacing:0.08em;
+    background:var(--rust); color:#fff; padding:3px 8px; border-radius:2px;
+    flex-shrink:0;
+  }
+  .demo-banner p{ margin:0; font-size:14px; flex:1 1 auto; min-width:220px; }
+  .demo-banner a.cta{
+    font-size:13px; font-weight:600; white-space:nowrap;
+    text-decoration:none; border-bottom:2px solid var(--amber);
+  }
+  .demo-banner a.cta:hover{ color:var(--amber); }
+
+  /* ---------- header ---------- */
+  header.site{ padding:20px 0 0; }
+  .brandrow{ display:flex; align-items:center; justify-content:space-between; gap:16px; }
+  .brand{ display:flex; align-items:center; gap:10px; font-family:var(--font-mono); font-size:14px; }
+  .brand .mark{
+    height:30px; width:auto; display:block;
+  }
+  nav.site a{ font-size:13px; text-decoration:none; margin-left:20px; font-weight:500; }
+  nav.site a:hover{ color:var(--amber); }
+
+  /* ---------- hero ---------- */
+  .hero{ padding:64px 0 56px; position:relative; }
+  .hero-grid{ display:grid; grid-template-columns: 1.15fr 0.85fr; gap:48px; align-items:start; }
+  @media (max-width:860px){ .hero-grid{ grid-template-columns:1fr; } }
+
+  .eyebrow{
+    font-family:var(--font-mono); font-size:12px; letter-spacing:0.12em; text-transform:uppercase;
+    color:var(--rust); margin:0 0 14px;
+  }
+  h1{
+    font-family:var(--font-display); font-weight:800; font-style:normal;
+    font-size:clamp(38px, 5.6vw, 64px); line-height:0.98; letter-spacing:0.002em;
+    margin:0 0 20px; color:var(--ink);
+  }
+  h1 em{ font-style:normal; color:var(--navy); text-decoration: underline; text-decoration-color:var(--amber); text-decoration-thickness:5px; text-underline-offset:6px; }
+
+  .lede{ font-size:18px; color:#33405c; max-width:52ch; margin:0 0 28px; }
+
+  .hero-actions{ display:flex; gap:14px; flex-wrap:wrap; }
+  .btn{
+    font-family:var(--font-body); font-weight:600; font-size:14px;
+    padding:12px 20px; border-radius:var(--radius); text-decoration:none;
+    display:inline-flex; align-items:center; gap:8px; border:2px solid var(--ink);
+    transition: transform 120ms ease, box-shadow 120ms ease;
+  }
+  .btn:hover{ transform:translateY(-2px); box-shadow:3px 4px 0 var(--ink); }
+  .btn-primary{ background:var(--navy); color:#fff; border-color:var(--navy); }
+  .btn-primary:hover{ box-shadow:3px 4px 0 var(--ink); }
+  .btn-ghost{ background:transparent; color:var(--ink); }
+
+  /* hero stamp ticket */
+  .stamp-card{
+    background:var(--paper-raised); border:2px solid var(--ink); border-radius:6px;
+    padding:22px 22px 20px; position:relative; transform:rotate(2deg);
+    box-shadow: 6px 8px 0 rgba(27,34,51,0.14);
+  }
+  .stamp-card::before{
+    content:"DEMO"; position:absolute; top:14px; right:-8px;
+    background:var(--rust); color:#fff; font-family:var(--font-mono); font-weight:600;
+    font-size:12px; letter-spacing:0.1em; padding:4px 12px; transform:rotate(6deg);
+    box-shadow:2px 2px 0 rgba(27,34,51,0.3);
+  }
+  .stamp-card h3{ font-family:var(--font-mono); font-size:13px; text-transform:uppercase; letter-spacing:0.08em; color:var(--slate); margin:0 0 10px; }
+  .stamp-card ol{ margin:0; padding-left:20px; font-size:14px; }
+  .stamp-card li{ margin-bottom:9px; }
+  .stamp-card li b{ font-family:var(--font-mono); color:var(--navy); }
+  .stamp-card .ticketno{
+    margin-top:16px; padding-top:14px; border-top:1px dashed var(--line);
+    font-family:var(--font-mono); font-size:12px; color:var(--slate); display:flex; justify-content:space-between;
+  }
+
+  /* ---------- section shell ---------- */
+  section{ padding:56px 0; }
+  section.alt{ background:var(--paper-raised); border-top:2px solid var(--ink); border-bottom:2px solid var(--ink); }
+  .section-head{ margin-bottom:34px; max-width:64ch; }
+  .section-head .eyebrow{ margin-bottom:8px; }
+  h2{ font-family:var(--font-display); font-weight:800; font-size:clamp(28px,3.4vw,38px); margin:0 0 10px; line-height:1.02; }
+  .section-head p{ color:#3c4863; font-size:15.5px; margin:0; }
+
+  /* ---------- lifecycle ---------- */
+  .lifecycle{ display:grid; grid-template-columns:repeat(5,1fr); gap:0; counter-reset:step; }
+  @media (max-width:900px){ .lifecycle{ grid-template-columns:1fr; } }
+  .lc-step{
+    position:relative; padding:0 18px 0 0; border-right:1px dashed var(--line);
+  }
+  .lifecycle .lc-step:last-child{ border-right:none; padding-right:0; }
+  @media (max-width:900px){
+    .lc-step{ border-right:none; border-bottom:1px dashed var(--line); padding:0 0 20px; margin-bottom:20px; }
+  }
+  .lc-num{
+    counter-increment:step; font-family:var(--font-mono); font-weight:600; font-size:12px;
+    color:#fff; background:var(--navy); width:26px; height:26px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; margin-bottom:14px;
+  }
+  .lc-num::before{ content: counter(step, decimal-leading-zero); }
+  .lc-step h4{ font-size:15px; margin:0 0 6px; font-weight:600; }
+  .lc-step p{ font-size:13.5px; color:var(--slate); margin:0; }
+
+  /* ---------- job board ---------- */
+  .filter-row{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:26px; }
+  .chip{
+    font-family:var(--font-mono); font-size:12px; padding:6px 12px; border:1px solid var(--ink);
+    border-radius:20px; background:var(--paper-raised); color:var(--ink);
+  }
+  .chip.active{ background:var(--ink); color:var(--paper); }
+
+  .board{ display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:20px; }
+
+  .ticket{
+    background:var(--paper-raised); border:2px solid var(--ink); border-radius:6px;
+    position:relative; overflow:hidden;
+    transition: transform 140ms ease, box-shadow 140ms ease;
+  }
+  .ticket:hover{ transform:translateY(-3px); box-shadow:4px 6px 0 rgba(27,34,51,0.18); }
+
+  .ticket-top{ padding:18px 18px 16px; }
+  .ticket-cat{
+    display:inline-block; font-family:var(--font-mono); font-size:10.5px; letter-spacing:0.06em;
+    text-transform:uppercase; padding:3px 8px; border-radius:2px; margin-bottom:12px;
+    background:var(--navy); color:#fff;
+  }
+  .ticket-cat.rust{ background:var(--rust); }
+  .ticket-cat.amber{ background:var(--amber); color:var(--ink); }
+
+  .ticket h3{ font-family:var(--font-display); font-weight:700; font-size:20px; margin:0 0 8px; line-height:1.05; }
+  .ticket .org{ font-size:12.5px; color:var(--slate); margin:0 0 14px; }
+  .ticket .org b{ color:var(--ink); font-weight:600; }
+  .ticket .meta{ display:flex; flex-wrap:wrap; gap:14px; font-size:12.5px; color:var(--slate); margin-bottom:10px; }
+  .ticket .meta b{ color:var(--ink); font-family:var(--font-mono); font-weight:500; }
+  .ticket .attire{ font-size:12.5px; color:#3c4863; border-left:2px solid var(--amber); padding-left:9px; margin:0; }
+
+  /* perforation */
+  .perf{
+    position:relative; border-top:1px dashed var(--line); margin-top:16px;
+  }
+  .perf::before, .perf::after{
+    content:""; position:absolute; top:-8px; width:16px; height:16px; border-radius:50%;
+    background:var(--paper);
+  }
+  .perf::before{ left:-10px; }
+  .perf::after{ right:-10px; }
+
+  .ticket-bottom{
+    display:flex; align-items:center; justify-content:space-between; padding:12px 18px 16px;
+  }
+  .ticket-num{ font-family:var(--font-mono); font-size:11px; color:var(--slate); }
+  .status{
+    font-family:var(--font-mono); font-size:11px; font-weight:600; letter-spacing:0.05em;
+    padding:4px 10px; border-radius:20px;
+  }
+  .status.open{ background:#DCE9DD; color:#1F5B33; border:1px solid #1F5B33; }
+  .status.claimed{ background:#F1E1C6; color:#8A5A11; border:1px solid #8A5A11; }
+
+  .board-note{
+    margin-top:20px; font-size:13px; color:var(--slate); font-style:italic;
+  }
+
+  /* ---------- roles ---------- */
+  .roles{ display:grid; grid-template-columns:repeat(3,1fr); gap:22px; }
+  @media (max-width:760px){ .roles{ grid-template-columns:1fr; } }
+  .role-card{ background:var(--paper); border:1.5px solid var(--ink); border-radius:6px; padding:22px; }
+  .role-card .rk{ font-family:var(--font-mono); font-size:11px; letter-spacing:0.08em; color:var(--rust); display:block; margin-bottom:8px; }
+  .role-card h4{ font-family:var(--font-display); font-weight:700; font-size:22px; margin:0 0 10px; }
+  .role-card p{ font-size:13.5px; color:#3c4863; margin:0; }
+
+  /* ---------- contribute ---------- */
+  .contribute{
+    background:var(--navy); color:var(--paper-raised); border-radius:8px; padding:46px 40px;
+    display:grid; grid-template-columns:1.3fr 0.7fr; gap:32px; align-items:center;
+    border:2px solid var(--ink);
+  }
+  @media (max-width:760px){ .contribute{ grid-template-columns:1fr; padding:32px 24px; } }
+  .contribute h2{ color:#fff; }
+  .contribute p{ color:#C9D3E4; font-size:15px; max-width:52ch; }
+  .contribute-links{ display:flex; flex-direction:column; gap:10px; }
+  .contribute-links a{
+    text-decoration:none; font-weight:600; font-size:14px; padding:12px 16px;
+    background:var(--paper-raised); color:var(--ink); border-radius:var(--radius);
+    display:flex; align-items:center; justify-content:space-between; border:2px solid var(--ink);
+    transition: transform 120ms ease;
+  }
+  .contribute-links a:hover{ transform:translateX(4px); }
+  .contribute-links a.primary{ background:var(--amber); }
+
+  footer{ padding:36px 0 48px; }
+  footer .wrap{ display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px; font-size:12.5px; color:var(--slate); font-family:var(--font-mono); }
+  footer a{ text-decoration:none; }
+  footer a:hover{ color:var(--navy); }
+</style>
+</head>
+<body>
+
+  <div class="demo-banner">
+    <div class="wrap">
+      <span class="tag">DEMO</span>
+      <p>This page shows what Task Bridge could look like. It's mid-build, unstyled beyond this preview, and none of the jobs below are real. The backend mechanics — org trust, claim locking, verification codes, payout release — already exist in the repo.</p>
+      <a class="cta" href="https://github.com/Jotto1988/task-bridge" target="_blank" rel="noopener">Contribute on GitHub →</a>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <header class="site">
+      <div class="brandrow">
+        <div class="brand">
+          <img class="mark" src="assets/images/logo_task_bridge.png" alt="Task Bridge logo">
+          TASK BRIDGE
+        </div>
+        <nav class="site">
+          <a href="#board">Job board</a>
+          <a href="#roles">Roles</a>
+          <a href="#contribute">Contribute</a>
+        </nav>
+      </div>
+    </header>
+
+    <section class="hero">
+      <div class="hero-grid">
+        <div>
+          <p class="eyebrow">Concept demo — not a live platform</p>
+          <h1>When AI hits a wall,<br><em>a person</em> picks up the ticket.</h1>
+          <p class="lede">Task Bridge is an open-source concept for routing AI-generated human-in-the-loop work back to real people — with the claim-locking, turnaround windows, and accountability of a bug bounty platform, and verification that can't be self-certified.</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="#board">See the mock board</a>
+            <a class="btn btn-ghost" href="https://github.com/Jotto1988/task-bridge" target="_blank" rel="noopener">View source →</a>
+          </div>
+        </div>
+
+        <div class="stamp-card">
+          <h3>Sample ticket</h3>
+          <ol>
+            <li><b>Raised</b> — an AI system flags a case it shouldn't resolve alone.</li>
+            <li><b>Approved</b> — a human signs off, issues a one-time code.</li>
+            <li><b>Claimed</b> — locked to one resolver, on the clock.</li>
+            <li><b>Verified</b> — the client's code confirms it's actually done.</li>
+            <li><b>Paid</b> — released by admin, separate from the approver.</li>
+          </ol>
+          <div class="ticketno">
+            <span>TB-2026-00417</span>
+            <span>MOCK DATA</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <section class="alt">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Lifecycle</p>
+        <h2>Five stages, one ticket</h2>
+        <p>Every request moves through the same chain of custody, whether it started with an AI system or a customer asking a company directly for help.</p>
+      </div>
+      <div class="lifecycle">
+        <div class="lc-step"><div class="lc-num"></div><h4>Raised</h4><p>AI or a customer flags something needing a human — never published on its own.</p></div>
+        <div class="lc-step"><div class="lc-num"></div><h4>Approved</h4><p>An Approver signs off, edits guidance if needed, and a verification code is issued.</p></div>
+        <div class="lc-step"><div class="lc-num"></div><h4>Claimed</h4><p>First qualified resolver locks it. No one else can take it while it's held.</p></div>
+        <div class="lc-step"><div class="lc-num"></div><h4>Verified</h4><p>Completion requires the client's code — never the resolver's own say-so.</p></div>
+        <div class="lc-step"><div class="lc-num"></div><h4>Paid</h4><p>Admin releases payout — a separate authority from whoever approved the job.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap">
+    <section id="board">
+      <div class="section-head">
+        <p class="eyebrow">Mock job board</p>
+        <h2>What resolvers would see</h2>
+        <p>Sample listings only — no real organizations, no real payouts. This is what the public board looks like once requests clear approval.</p>
+      </div>
+
+      <div class="filter-row">
+        <span class="chip active">All categories</span>
+        <span class="chip">Site visit</span>
+        <span class="chip">See a person</span>
+        <span class="chip">Collect parcel</span>
+        <span class="chip">Deliver parcel</span>
+        <span class="chip">Document review</span>
+      </div>
+
+      <div class="board">
+
+        <article class="ticket">
+          <div class="ticket-top">
+            <span class="ticket-cat rust">Site visit</span>
+            <h3>Verify storm damage before payout</h3>
+            <p class="org">Insurance · <b>Sentinel Mutual</b></p>
+            <div class="meta"><span>Payout <b>R450</b></span><span>Window <b>3h</b></span></div>
+            <p class="attire">Smart casual, closed-toe shoes — site PPE required</p>
+          </div>
+          <div class="perf"></div>
+          <div class="ticket-bottom">
+            <span class="ticket-num">TB-2026-00417</span>
+            <span class="status open">OPEN</span>
+          </div>
+        </article>
+
+        <article class="ticket">
+          <div class="ticket-top">
+            <span class="ticket-cat">See a person</span>
+            <h3>Help a customer recover online banking access</h3>
+            <p class="org">Bank · <b>Meridian Bank</b></p>
+            <div class="meta"><span>Payout <b>R300</b></span><span>Window <b>1h</b></span></div>
+            <p class="attire">Business casual — branch-adjacent visit</p>
+          </div>
+          <div class="perf"></div>
+          <div class="ticket-bottom">
+            <span class="ticket-num">TB-2026-00418</span>
+            <span class="status claimed">CLAIMED</span>
+          </div>
+        </article>
+
+        <article class="ticket">
+          <div class="ticket-top">
+            <span class="ticket-cat amber">Collect parcel</span>
+            <h3>Collect flagged shipment for inspection</h3>
+            <p class="org">Logistics · <b>Swift Line Logistics</b></p>
+            <div class="meta"><span>Payout <b>R220</b></span><span>Window <b>45m</b></span></div>
+            <p class="attire">Casual — no client interaction expected</p>
+          </div>
+          <div class="perf"></div>
+          <div class="ticket-bottom">
+            <span class="ticket-num">TB-2026-00419</span>
+            <span class="status open">OPEN</span>
+          </div>
+        </article>
+
+        <article class="ticket">
+          <div class="ticket-top">
+            <span class="ticket-cat rust">Document review</span>
+            <h3>Review signed lease scan for missing initials</h3>
+            <p class="org">Law firm · <b>Halsted &amp; Cole Attorneys</b></p>
+            <div class="meta"><span>Payout <b>R180</b></span><span>Window <b>2h</b></span></div>
+            <p class="attire">Remote — desk-based, no site visit</p>
+          </div>
+          <div class="perf"></div>
+          <div class="ticket-bottom">
+            <span class="ticket-num">TB-2026-00420</span>
+            <span class="status open">OPEN</span>
+          </div>
+        </article>
+
+        <article class="ticket">
+          <div class="ticket-top">
+            <span class="ticket-cat">Deliver parcel</span>
+            <h3>Deliver signed tax documents to client</h3>
+            <p class="org">Accounting · <b>Ledger &amp; Co.</b></p>
+            <div class="meta"><span>Payout <b>R150</b></span><span>Window <b>90m</b></span></div>
+            <p class="attire">Casual — brief client interaction possible</p>
+          </div>
+          <div class="perf"></div>
+          <div class="ticket-bottom">
+            <span class="ticket-num">TB-2026-00421</span>
+            <span class="status open">OPEN</span>
+          </div>
+        </article>
+
+        <article class="ticket">
+          <div class="ticket-top">
+            <span class="ticket-cat amber">Other</span>
+            <h3>On-site inventory recount, back office</h3>
+            <p class="org">Retail · <b>Northfield Goods</b></p>
+            <div class="meta"><span>Payout <b>R260</b></span><span>Window <b>4h</b></span></div>
+            <p class="attire">Not specified — confirm with requester before accepting</p>
+          </div>
+          <div class="perf"></div>
+          <div class="ticket-bottom">
+            <span class="ticket-num">TB-2026-00422</span>
+            <span class="status open">OPEN</span>
+          </div>
+        </article>
+
+      </div>
+
+      <p class="board-note">Filter chips are for layout only in this preview — no live filtering yet. That's a good first issue if you want to help build it.</p>
+    </section>
+  </div>
+
+  <section class="alt" id="roles">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Who's who</p>
+        <h2>Three roles, one chain of trust</h2>
+        <p>Every approval, rejection, and payout checks the caller's actual role for that specific request's organization — not just whether they're signed in.</p>
+      </div>
+      <div class="roles">
+        <div class="role-card">
+          <span class="rk">ORG · ADMIN</span>
+          <h4>Admin</h4>
+          <p>Oversees everything for their organization — every request regardless of status, who's allowed to approve, and who releases payouts. The first Admin is whoever registers the org.</p>
+        </div>
+        <div class="role-card">
+          <span class="rk">ORG · REVIEW</span>
+          <h4>Approver</h4>
+          <p>Reviews requests before they go live. Can approve, reject, resolve something personally, or edit the guidance shipped with a job. Can't self-promote to Admin or release a payout.</p>
+        </div>
+        <div class="role-card">
+          <span class="rk">FIELD</span>
+          <h4>Resolver</h4>
+          <p>Claims and does the work. Locked to one job at a time per claim, on the clock, and paid once the client's own verification code confirms it's actually finished.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap">
+    <section id="contribute">
+      <div class="contribute">
+        <div>
+          <p class="eyebrow" style="color:#9FB4D6;">Help build this</p>
+          <h2>The idea's here. The interface isn't, yet.</h2>
+          <p>The org trust system, claim locking, verification codes, and payout gating all already work — see the repo. What's missing is everything you're looking at right now, turned into something real: a live board, auth, an actual UI. If this is a problem worth solving, take a piece of it.</p>
+        </div>
+        <div class="contribute-links">
+          <a class="primary" href="https://github.com/Jotto1988/task-bridge" target="_blank" rel="noopener">View the repo →</a>
+          <a href="https://github.com/Jotto1988/task-bridge/issues" target="_blank" rel="noopener">Open an issue →</a>
+          <a href="https://github.com/Jotto1988/task-bridge#readme" target="_blank" rel="noopener">Read the README →</a>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    <div class="wrap">
+      <span>Task Bridge — MIT licensed, open concept, not affiliated with any company shown above.</span>
+      <span><a href="https://github.com/Jotto1988/task-bridge" target="_blank" rel="noopener">github.com/Jotto1988/task-bridge</a></span>
+    </div>
+  </footer>
+
+</body>
+</html>
