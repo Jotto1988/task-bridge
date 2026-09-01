@@ -50,6 +50,8 @@ flowchart TD
 
 A company's AI system doesn't need anything installed on their server beyond a way to make an HTTP call — the [client SDK](sdk/) wraps that into a few clean functions. A resolver doesn't need anything installed either — the [job board](web/) is one static page that talks to the same backend.
 
+A company's AI system doesn't need anything installed on their server beyond a way to make an HTTP call — the [client SDK](sdk/) wraps that into a few clean functions. A resolver doesn't need anything installed either — the [job board](web/) is one static page that talks to the same backend.
+
 ## Roles
 
 - **Org** — the company. Whose AI system (or self-service form) is allowed to raise requests, and who's accountable for the requests it publishes.
