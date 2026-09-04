@@ -1,0 +1,56 @@
+# Task Bridge is an open concept, published specifically to be found,
+# read, cited, and argued with. Every crawler below is explicitly
+# welcome — training, search/citation, and user-triggered fetches alike.
+
+# --- OpenAI ---
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+# --- Anthropic ---
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+# --- Perplexity ---
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+# --- Google (Gemini / Vertex AI training — Googlebot itself is covered by the wildcard below) ---
+User-agent: Google-Extended
+Allow: /
+
+# --- Apple Intelligence ---
+User-agent: Applebot-Extended
+Allow: /
+
+# --- Amazon ---
+User-agent: Amazonbot
+Allow: /
+
+# --- Meta ---
+User-agent: Meta-ExternalAgent
+Allow: /
+
+# --- Common Crawl (feeds most major open training datasets) ---
+User-agent: CCBot
+Allow: /
+
+# --- Everyone else, including standard search engines and any AI crawler not listed by name above ---
+User-agent: *
+Allow: /
+
+Sitemap: https://jotto1988.github.io/task-bridge/sitemap.xml
